@@ -1,75 +1,113 @@
-// create motor structs with attributes
 #include <AFMotor.h>
 #include <Encoder.h>
 
-  // Macros
-  #define CW 0
-  #define CCW 1
+// Macros
+#define CW 1
+#define CCW 2
+
+// Debugging: 0 - off, 1 - on
+#define SERIAL_PRINT 1
+
+// A dc object consists of a motor and an encoder object, and a position variable to track the motor position
+// Clockwise (CW) rotation increases the position value.
 
 class dc {
-public:
-  int powerPort;
-  int enc1Pin;
-  int enc2Pin;
+  public:
+    dc(int powerPort, int enc1Pin, int enc2Pin) : mDriver(powerPort), enc(enc1Pin, enc2Pin) {
+      position = 0;
+    }
 
-  dc(int pP, int e1P, int e2P) {
-    powerPort = pP;
-    enc1Pin = e1P;
-    enc2Pin = e2P;
-    Encoder enc(enc1Pin, enc2Pin);
-  }
+    AF_DCMotor mDriver;
+    Encoder enc;
+    int position;
 };
 
-struct stepper {
-  int dirPin;
-  int stepPin;
+// A stepper object is defined by its dirPin which sets the pin that controls the direction of rotation (HIGH/LOW) and a stepPin.
+// Setting the stepPin HIGH and then LOW defines one step movement.
+class stepper {
+  public:
+    stepper(int dirPin, int stepPin) : dirPin(dirPin), stepPin(stepPin) {
+      pinMode(stepPin, OUTPUT);
+      pinMode(dirPin, OUTPUT);
+      position = 0;
+    }
+
+    int dirPin;
+    int stepPin;
+    int position;  
 };
+
+// create dc motors specifying power port (M1-4), encoder pin 1 and encoder pin 2.
+dc motor1(1, 2, 3);
+dc motor2(4, 5, 6);
 
 void setup() {
-  // Define input variables here
-  
-  // create motors
-  struct dc motor1;
-  struct dc motor2;
-
-  motor1.powerPort = 1;
-  motor1.enc1Pin = 2;
-  motor1.enc2Pin = 3;
-  motor1.enc = Encoder(motor1.enc1Pin, motor1.enc2Pin = 3);
-
-  motor2.powerPort = 1;
-  motor2.enc1Pin = 2;
-  motor2.enc2Pin = 3;
-
-  AF_DCMotor m1(motor1.powerPort);
-  AF_DCMotor m2(motor2.powerPort);
-
-
-  // enter all the dimensions
+  if (SERIAL_PRINT) {
+    Serial.begin(9600);
+  }
 }
 
-// void moveNStepsDC(struct dc motor, int nSteps, int dir, int speed) {
-//   motor.setSpeed(speed);
-//   motor.run(dir);
-//   initPos = motor.enc.read()
-//   desiredStepDelta = 
-//   while (motor.enc.read() - initPos != (2*dir - 1)*nSteps) {  }
-//   motor.run(release);
-//   motor.enc.write(0);
-// }
+// Moves a DC motor by nSteps encoder steps into direction dir (CW or CCW) at speed 'speed'.
+void moveNStepsDC(dc motor, int nSteps, int dir, int speed) {
 
-void moveNStepsDC(AF_DCMotor motor, int nSteps, int dir, int speed);
+  int lastSignal = motor.enc.read();
+  int currentSignal;
+  // steps run during the current function call, direction not considered
+  int stepsRun = 0;
+  int initPosition = motor.position;
+  int targetPosition;
 
-moveNStepsDC(motor, nSteps, dir, speed) {
-  motor.setSpeed(speed);
-  motor.run(dir);
-  while (abs(motor.enc.read()) < nSteps) {  }
-  motor.run(release);
+  if (dir == CW) {
+    targetPosition = initPosition + nSteps;
+  } else {
+    targetPosition = initPosition - nSteps;
+  }
+
+  // start motor
+  motor.mDriver.setSpeed(speed);
+  motor.mDriver.run(dir);
+
+  // check whether the number of encoder steps passed 'stepsRun' has reached the desired number of steps 'nSteps' continuously
+  while (stepsRun < nSteps) {
+    currentSignal = motor.enc.read();
+    if (currentSignal != lastSignal) {
+      stepsRun++;
+      lastSignal = currentSignal;
+    }
+  }
+
+  motor.mDriver.run(RELEASE);
   motor.enc.write(0);
+  Serial.println("Motor stopped");
+
+  if (dir == CW) {
+    motor.position += stepsRun;
+  } else {
+    motor.position -= stepsRun;
+  }
+
+  if (SERIAL_PRINT) {
+    Serial.println("Initial position: " + initPosition);
+    Serial.println("Target Position: " + targetPosition);
+    Serial.println("Actual position: " + motor.position);
+  }
+
+}
+
+void moveNStepsStepper(stepper motor, int nSteps, int dir, int speed) {
+  int initPosition = motor.position;
+  // CW/CCW takes values 1/2, need to convert to values 0/1 for LOW/HIGH
+  motor.dirPin = dir - 1;
+
+  for (int stepsRun = 0; stepsRun < nSteps; stepsRun++) {
+    digitalWrite(motor.stepPin, HIGH);
+    delayMicroseconds(500);
+    digitalWrite(motor.stepPin, LOW);
+    delayMicroseconds(500);
+  }
 }
 
 
 void loop() {
-  moveNStepsDC(m1, 2000, FORWARD, 200);
-
+  moveNStepsDC(motor1, 2000, CW, 200);
 }
