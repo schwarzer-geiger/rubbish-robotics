@@ -14,14 +14,6 @@
 double L1 = 10;
 // Arm connected to end effector [cm]
 double L2 = 10;
-// encoder resolution for DC motors [steps per rotation]
-int dcStepsPerTurn = 200;
-
-// stepper motor resolution [steps per rotation]
-int stepperStepsPerTurn = 48;
-
-// microstepping factor (1/16, 1/32 etc.) [N/A]
-float microstepFactor = 1;
 
 // #----------USER PARAMETERS END----------#
 
@@ -33,19 +25,30 @@ public:
   virtual void moveNSteps(int, int, int) {
   }
 
-  virtual void calibrate() {    
-  }
-
   // returns the angle of the robot arm in degrees [see drawing]
-  // TODO: currently doing integer division, should be precise enough?
+  // TODO: currently doing integer division for the DC case, should be precise enough?
   int getAngle() {
     return position / stepsPerDeg;
+  }
+
+  // moves motor/arm to desired angle at desired speed
+  void setAngle(int targetAngle, int speed) {
+    int currentAngle = getAngle();
+    int difference = targetAngle - currentAngle;
+    int stepsToTurn = abs(difference * stepsPerDeg);
+    int dir;
+    if (difference > 0) {
+      dir = CW;
+    } else {
+      dir = CCW;
+    }
+    moveNSteps(stepsToTurn, dir, speed);
   }
 
   int position;
   double angle;
   int powerPort;
-  int stepsPerDeg;
+  double stepsPerDeg;
 
 protected:
   // Helper function, contains all the zero'ing code compatible with both motor types
@@ -165,7 +168,7 @@ public:
     Serial.println("This arm successfully zero'd!");
   }
 
-  void calibrate() {
+  void calibrateDC() {
     manualMov();
     stepsPerDeg = abs(enc.read()) / calibAngle;
     enc.write(0);
@@ -202,11 +205,6 @@ struct t1t2Angles {
   double theta1;
   double theta2;
 };
-
-// turn an angle in degrees to number of steps
-float deg2StepsDC(float angle) {
-  return dcStepsPerTurn * angle / 360;
-}
 
 // float rad2StepsDC(float radians) {
 //   return dcStepsPerTurn * angle / (PI * 2);
@@ -271,6 +269,10 @@ void setup() {
   Serial.println("Now move the upper arm into the horizontal position.");
   motor2.zero();
   Serial.println("Now calibrate the motors by moving the arms to the marked positions.");
+  Serial.println("You can now move motor 1.");
+  motor1.calibrateDC();
+  Serial.println("You can now move motor 2.");
+  motor2.calibrateDC();
 }
 
 void loop() {
