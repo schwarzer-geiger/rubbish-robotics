@@ -233,28 +233,31 @@ struct t1t2Angles getCurrentT1T2() {
 
 // Returns -1 if xTarget and/or yTarget are out of range of motion
 // Returns -2 if robot didn't manage to move to (xTarget, yTarget)
-// int moveToXY(float xTarget, float yTarget) {
+int moveToXY(motor m1, motor m2, float xTarget, float yTarget) {
 
-//   float D = sqrt(pow(xTarget, 2) + pow(yTarget, 2));
-//   if (D > L1 + L2) {
-//     return -1;
-//   }
+  float D = sqrt(pow(xTarget, 2) + pow(yTarget, 2));
+  if (D > L1 + L2) {
+    return -1;
+  }
 
-//   float gamma = atan2(yTarget, xTarget);
-//   // assuming theta 1 controls the lower arm and theta 2 is for the upper arm,
-//   // assuming robot has been zeroed in a vertical upper arm, horisontal lower arm position
-//   // assuming when looking at the robot from its right side,  theta 1 is positive in CW and theta 2 is positive in CCW
+  float gamma = atan2(yTarget, xTarget);
+  // assuming theta 1 controls the lower arm and theta 2 is for the upper arm,
+  // assuming robot has been zeroed in a vertical upper arm, horisontal lower arm position
+  // assuming when looking at the robot from its right side,  theta 1 is positive in CW and theta 2 is positive in CCW
 
-//   float theta1Target = asin((pow(L1, 2) + pow(D, 2) - pow(L2, 2)) / (2 * L1 * D)) - gamma;
-//   float theta2Target = asin((pow(D, 2) - pow(L1, 2) - pow(L2, 2)) / (2 * L1 * L2)) - theta1Target;
-//   // TODO; moveNSteps adds to the current position! Better to drive motor exactly to this position, there has to be a prettier way
-//   float theta1Steps = abs(rad2StepsDC(theta1Target) - motor1.position);
-//   int theta1Dir = 2 - (rad2StepsDC(theta1Target) > motor1.position)  // CW if pos, CCW if neg
-//                   float theta2Steps = abs(rad2StepsDC(theta2Target) - motor2.position);
-//   int theta2Dir = 1 + (rad2StepsDC(theta2Target) > motor2.position)  // CCW if pos, CW if neg
-//                   moveNStepsDC(motor1, theta1Steps, theta1Dir, 20);
-//   moveNStepsDC(motor2, theta2Steps, theta2Dir, 20);
-// }
+  float theta1Target = asin((pow(L1, 2) + pow(D, 2) - pow(L2, 2)) / (2 * L1 * D)) - gamma;
+  float theta2Target = asin((pow(D, 2) - pow(L1, 2) - pow(L2, 2)) / (2 * L1 * L2)) - theta1Target;
+
+  m1.setAngle(theta1Target, 20);
+  m2.setAngle(theta2Target, 20);
+  // TODO; moveNSteps adds to the current position! Better to drive motor exactly to this position, there has to be a prettier way
+  // float theta1Steps = abs(rad2StepsDC(theta1Target) - motor1.position);
+  // int theta1Dir = 2 - (rad2StepsDC(theta1Target) > motor1.position)  // CW if pos, CCW if neg
+  //                 float theta2Steps = abs(rad2StepsDC(theta2Target) - motor2.position);
+  // int theta2Dir = 1 + (rad2StepsDC(theta2Target) > motor2.position)  // CCW if pos, CW if neg
+  //                 moveNStepsDC(motor1, theta1Steps, theta1Dir, 20);
+  // moveNStepsDC(motor2, theta2Steps, theta2Dir, 20);
+}
 
 void setup() {
 
