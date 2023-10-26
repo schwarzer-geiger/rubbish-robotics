@@ -30,6 +30,12 @@ float microstepFactor = 1;
 
 class motor {
 public:
+  virtual void moveNSteps(int, int, int) {
+  }
+
+  virtual void calibrate() {    
+  }
+
   // returns the angle of the robot arm in degrees [see drawing]
   // TODO: currently doing integer division, should be precise enough?
   int getAngle() {
@@ -40,16 +46,64 @@ public:
   double angle;
   int powerPort;
   int stepsPerDeg;
+
+protected:
+  // Helper function, contains all the zero'ing code compatible with both motor types
+  void manualMov() {
+
+    // executes zeroing process
+    Serial.println("Please use the following command format to move the arm.");
+    Serial.println("               +0120           ");
+    Serial.println("            steps ^");
+    Serial.println("Once the desired position has been achieved, type 'alldone'");
+
+    bool isDone = false;
+    String inputs = String(5);
+
+    while (!isDone) {
+      // to prevent risk of broken data, only read if there are at least 7 characters
+      if (Serial.available() >= 5) {
+        int steps;
+        int dir;
+        int index;
+        for (int i = 0; i < 5; i++) {
+          inputs[i] = Serial.read();
+        }
+
+        // discard anything after the first 5 characters just in case
+        while (Serial.available()) {
+          Serial.read();
+        }
+
+        // TODO: Check this with new input format, don't understand
+        if (inputs[0] == '+' || inputs[0] == '-') {
+          steps = inputs.substring(1, 5).toInt();
+          dir = 2 - (inputs[0] == '+');  // CW (1) if +, CCW (2) if -
+          // not needed anymore? index = inputs[6] - '0';
+
+          Serial.print("Set steps ");
+          Serial.print(steps);
+          Serial.print(" to index ");
+          Serial.println(index);
+
+          moveNSteps(steps, dir, 20);
+        }
+        // quickly checking if inputs is alldone by just comparing the first letter
+        if (inputs[0] == 'a')
+          isDone = true;
+      }
+    }
+  }
 };
 
-class dc : motor {
+class dc : public motor {
 public:
-  dc(int powerPin, int dirPin, int enc1Pin, int enc2Pin)
-    : powerPin(powerPin), dirPin(dirPin), enc(enc1Pin, enc2Pin) {
+  dc(int powerPin, int dirPin, int enc1Pin, int enc2Pin, int calibAngle)
+    : powerPin(powerPin), dirPin(dirPin), enc(enc1Pin, enc2Pin), calibAngle(calibAngle) {
   }
 
   // Moves motor by nSteps encoder steps into direction dir (CW or CCW) at speed 'speed'.
-  void moveNSteps(int nSteps, int dir, int speed) {
+  void moveNSteps(int nSteps, int dir, int speed) override {
     // start with motor off
     analogWrite(powerPin, 0);
 
@@ -104,8 +158,22 @@ public:
     }
   }
 
+  void zero() {
+    manualMov();
+    enc.write(0);
+    position = 0;
+    Serial.println("This arm successfully zero'd!");
+  }
+
+  void calibrate() {
+    manualMov();
+    stepsPerDeg = abs(enc.read()) / calibAngle;
+    enc.write(0);
+  }
+
   int powerPin;
   int dirPin;
+  int calibAngle;
   Encoder enc;
 };
 
@@ -134,10 +202,6 @@ struct t1t2Angles {
   double theta1;
   double theta2;
 };
-
-// create dc motors specifying power port (M1-4), encoder pin 1 and encoder pin 2.
-dc motor1(1, 2, 3, 4);
-dc motor2(5, 6, 7, 8);
 
 // turn an angle in degrees to number of steps
 float deg2StepsDC(float angle) {
@@ -194,65 +258,19 @@ struct t1t2Angles getCurrentT1T2() {
 //   moveNStepsDC(motor2, theta2Steps, theta2Dir, 20);
 // }
 
-void zero() {
+void setup() {
 
-  // executes zeroing process
+  // create dc motors specifying power pin, direction pin, encoder pin 1 and encoder pin 2.
+  dc motor1(1, 2, 3, 4, 30);
+  dc motor2(5, 6, 7, 8, 30);
+
   Serial.begin(9600);
   Serial.println("Please position the robot arm so that its lower arm is vertical and its upper arm is horizontal.");
-  Serial.println("Please use the following format:");
-  Serial.println("               +0120|2           ");
-  Serial.println("            steps ^  ^ motor index");
-  Serial.println("Once the zero position has been achieved, type 'alldone' to zero the encoders");
-
-  bool isDone = false;
-  String inputs = String(7);
-
-  while (!isDone) {
-    // to prevent risk of broken data, only read if there are at least 7 characters
-    if (Serial.available() >= 7) {
-      int steps;
-      int dir;
-      int index;
-      for (int i = 0; i < 7; i++) {
-        inputs[i] = Serial.read();
-      }
-
-      // discard anything after the first 7 characters just in case
-      while (Serial.available()) {
-        Serial.read();
-      }
-
-      if (inputs[0] == '+' || inputs[0] == '-') {
-        steps = inputs.substring(1, 5).toInt();
-        dir = 2 - (inputs[0] == '+');  // CW (1) if +, CCW (2) if -
-        index = inputs[6] - '0';
-
-        Serial.print("Set steps ");
-        Serial.print(steps);
-        Serial.print(" to index ");
-        Serial.println(index);
-
-        // TODO; this is ugly. figure out how to make it handle more than 2 motors if needed?
-        if (index == 1)
-          moveNStepsDC(motor1, steps, dir, 20);
-        if (index == 2)
-          moveNStepsDC(motor2, steps, dir, 20);
-      }
-      // quickly checking if inputs is alldone by just comparing the first letter
-      if (inputs[0] == 'a')
-        isDone = true;
-    }
-  }
-
-  motor1.enc.write(0);
-  motor2.enc.write(0);
-  motor1.position = 0;
-  motor2.position = 0;
-  Serial.println("Encoders successfully zeroed!");
-}
-
-void setup() {
-  zero();
+  Serial.println("Start with the lower arm by moving it to the vertical position.");
+  motor1.zero();
+  Serial.println("Now move the upper arm into the horizontal position.");
+  motor2.zero();
+  Serial.println("Now calibrate the motors by moving the arms to the marked positions.");
 }
 
 void loop() {
