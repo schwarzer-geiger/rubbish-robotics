@@ -1,9 +1,8 @@
-#include <AFMotor.h>
 #include <Encoder.h>
 
 // Macros
-#define CW 1
-#define CCW 2
+#define CW LOW
+#define CCW HIGH
 
 // Debugging: 0 - off, 1 - on
 #define SERIAL_PRINT 1
@@ -27,15 +26,15 @@ public:
 
   // returns the angle of the robot arm in degrees [see drawing]
   // TODO: currently doing integer division for the DC case, should be precise enough?
-  int getAngle() {
-    return position / stepsPerDeg;
+  float getAngle() {
+    return (float) position / stepsPerDeg;
   }
 
   // moves motor/arm to desired angle at desired speed
-  void setAngle(int targetAngle, int speed) {
-    int currentAngle = getAngle();
-    int difference = targetAngle - currentAngle;
-    int stepsToTurn = abs(difference * stepsPerDeg);
+  void setAngle(float targetAngle, int speed) {
+    float currentAngle = getAngle();
+    float difference = targetAngle - currentAngle;
+    int stepsToTurn = (int) abs(difference * stepsPerDeg);
     int dir;
     if (difference > 0) {
       dir = CW;
@@ -45,10 +44,10 @@ public:
     moveNSteps(stepsToTurn, dir, speed);
   }
 
-  int position;
-  double angle;
+  int position = 0;
+  float angle;
   int powerPort;
-  double stepsPerDeg;
+  float stepsPerDeg;
 
 protected:
   // Helper function, contains all the zero'ing code compatible with both motor types
@@ -101,14 +100,15 @@ protected:
 
 class dc : public motor {
 public:
-  dc(int powerPin, int dirPin, int enc1Pin, int enc2Pin, int calibAngle)
-    : powerPin(powerPin), dirPin(dirPin), enc(enc1Pin, enc2Pin), calibAngle(calibAngle) {
+  dc(int powerPin1, int powerPin2, int dirPin, int enc1Pin, int enc2Pin, int calibAngle)
+    : powerPin1(powerPin1), powerPin2(powerPin2), dirPin(dirPin), enc(enc1Pin, enc2Pin), calibAngle(calibAngle) {
   }
 
   // Moves motor by nSteps encoder steps into direction dir (CW or CCW) at speed 'speed'.
   void moveNSteps(int nSteps, int dir, int speed) override {
     // start with motor off
-    analogWrite(powerPin, 0);
+    analogWrite(powerPin1, 0);
+    analogWrite(powerPin2, 0);
 
     int lastSignal = enc.read();
     int currentSignal;
@@ -126,13 +126,10 @@ public:
 
     // start motor
     // speed requires: between 0 and 255
-    // If direction pin is high, speed has to be inverted
     if (dir == CW) {
-      analogWrite(powerPin, 255 - speed);
-      digitalWrite(dirPin, HIGH);
+      analogWrite(powerPin1, speed);
     } else {
-      analogWrite(powerPin, speed);
-      digitalWrite(dirPin, LOW);
+      analogWrite(powerPin2, speed);
     }
 
     // check whether the number of encoder steps passed 'stepsRun' has reached the desired number of steps 'nSteps' continuously
@@ -144,7 +141,8 @@ public:
       }
     }
 
-    analogWrite(powerPin, 0);
+    analogWrite(powerPin1, 0);
+    analogWrite(powerPin2, 0);
     enc.write(0);
     Serial.println("Motor stopped");
 
@@ -174,7 +172,8 @@ public:
     enc.write(0);
   }
 
-  int powerPin;
+  int powerPin1;
+  int powerPin2;
   int dirPin;
   int calibAngle;
   Encoder enc;
@@ -250,20 +249,13 @@ int moveToXY(motor m1, motor m2, float xTarget, float yTarget) {
 
   m1.setAngle(theta1Target, 20);
   m2.setAngle(theta2Target, 20);
-  // TODO; moveNSteps adds to the current position! Better to drive motor exactly to this position, there has to be a prettier way
-  // float theta1Steps = abs(rad2StepsDC(theta1Target) - motor1.position);
-  // int theta1Dir = 2 - (rad2StepsDC(theta1Target) > motor1.position)  // CW if pos, CCW if neg
-  //                 float theta2Steps = abs(rad2StepsDC(theta2Target) - motor2.position);
-  // int theta2Dir = 1 + (rad2StepsDC(theta2Target) > motor2.position)  // CCW if pos, CW if neg
-  //                 moveNStepsDC(motor1, theta1Steps, theta1Dir, 20);
-  // moveNStepsDC(motor2, theta2Steps, theta2Dir, 20);
 }
 
 void setup() {
 
   // create dc motors specifying power pin, direction pin, encoder pin 1 and encoder pin 2.
-  dc motor1(1, 2, 3, 4, 30);
-  dc motor2(5, 6, 7, 8, 30);
+  dc motor1(1, 2, 3, 4, 5, 30);
+  dc motor2(5, 6, 7, 8, 9, 30);
 
   Serial.begin(9600);
   Serial.println("Please position the robot arm so that its lower arm is vertical and its upper arm is horizontal.");
