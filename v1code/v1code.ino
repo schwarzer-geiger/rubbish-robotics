@@ -37,6 +37,18 @@ class stepper {
     int position;  
 };
 
+// Describes a position with coordinates x and y in [cm] with (0, 0) at TBD
+struct xyPosition {
+  double x;
+  double y;
+}
+
+// Describes angles of the end effectors relative to TBD
+struct t1t2Angles {
+  double theta1;
+  double theta2;
+}
+
 // create dc motors specifying power port (M1-4), encoder pin 1 and encoder pin 2.
 dc motor1(1, 2, 3);
 dc motor2(4, 5, 6);
@@ -45,6 +57,14 @@ void setup() {
   if (SERIAL_PRINT) {
     Serial.begin(9600);
   }
+
+  // define robot dimensions in [cm]
+
+  // Arm connected to base
+  double L1 = 10;
+
+  // Arm connected to end effector
+  double L2 = 10;
 }
 
 // Moves a DC motor by nSteps encoder steps into direction dir (CW or CCW) at speed 'speed'.
@@ -107,6 +127,24 @@ void moveNStepsStepper(stepper motor, int nSteps, int dir, int speed) {
   }
 }
 
+// Returns current (x,y) position of the end effector
+struct xyPosition getCurrentXY() {
+
+}
+
+// Returns current (theta1, theta2) position of the robot arms
+struct t1t2Angles getCurrentT1T2() {
+
+}
+
+// Returns -1 if xTarget and/or yTarget are out of range of motion
+// Returns -2 if robot didn't manage to move to (xTarget, yTarget)
+int moveToXY(int xTarget, int yTarget) {
+  // populate with inverse kinematics
+  double theta1Target = -1;
+  double theta2Target = -1;
+  
+} 
 
 void loop() {
   moveNStepsDC(motor1, 2000, CW, 200);
