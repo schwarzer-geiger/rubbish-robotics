@@ -1,8 +1,8 @@
 #include <Encoder.h>
 
 // Macros
-#define CW LOW
-#define CCW HIGH
+#define CW 0
+#define CCW 1
 
 // Debugging: 0 - off, 1 - on
 #define SERIAL_PRINT 1
@@ -10,7 +10,7 @@
 // #----------USER PARAMETERS START----------#
 
 // Arm connected to base [cm]
-double L1 = 10;
+double L1 = 15;
 // Arm connected to end effector [cm]
 double L2 = 10;
 
@@ -20,177 +20,179 @@ double L2 = 10;
 // Clockwise (CW) rotation increases the position value.
 
 class motor {
-public:
-  virtual void moveNSteps(int, int, int) {
-  }
-
-  // returns the angle of the robot arm in degrees [see drawing]
-  // TODO: currently doing integer division for the DC case, should be precise enough?
-  float getAngle() {
-    return (float) position / stepsPerDeg;
-  }
-
-  // moves motor/arm to desired angle at desired speed
-  void setAngle(float targetAngle, int speed) {
-    float currentAngle = getAngle();
-    float difference = targetAngle - currentAngle;
-    int stepsToTurn = (int) abs(difference * stepsPerDeg);
-    int dir;
-    if (difference > 0) {
-      dir = CW;
-    } else {
-      dir = CCW;
+  public:
+    virtual void moveNSteps(int, int, int) {
     }
-    moveNSteps(stepsToTurn, dir, speed);
-  }
 
-  int position = 0;
-  float angle;
-  int powerPort;
-  float stepsPerDeg;
+    // returns the angle of the robot arm in degrees [see drawing]
+    // TODO: currently doing integer division for the DC case, should be precise enough?
+    float getAngle() {
+      return (float) position / stepsPerDeg;
+    }
 
-protected:
-  // Helper function, contains all the zero'ing code compatible with both motor types
-  void manualMov() {
+    // moves motor/arm to desired angle at desired speed
+    void setAngle(float targetAngle, int speed) {
+      float currentAngle = getAngle();
+      float difference = targetAngle - currentAngle;
+      int stepsToTurn = (int) abs(difference * stepsPerDeg);
+      int dir;
+      if (difference > 0) {
+        dir = CW;
+      } else {
+        dir = CCW;
+      }
+      moveNSteps(stepsToTurn, dir, speed);
+    }
 
-    // executes zeroing process
-    Serial.println("Please use the following command format to move the arm.");
-    Serial.println("               +0120           ");
-    Serial.println("            steps ^");
-    Serial.println("Once the desired position has been achieved, type 'alldone'");
+    int position = 0;
+    float angle;
+    int powerPort;
+    float stepsPerDeg;
 
-    bool isDone = false;
-    String inputs = String(5);
+  protected:
+    // Helper function, contains all the zero'ing code compatible with both motor types
+    void manualMov() {
 
-    while (!isDone) {
-      // to prevent risk of broken data, only read if there are at least 7 characters
-      if (Serial.available() >= 5) {
-        int steps;
-        int dir;
-        int index;
-        for (int i = 0; i < 5; i++) {
-          inputs[i] = Serial.read();
+      // executes zeroing process
+      Serial.println("Please use the following command format to move the arm.");
+      Serial.println("               +0120           ");
+      Serial.println("            steps ^");
+      Serial.println("Once the desired position has been achieved, type 'alldone'");
+
+      bool isDone = false;
+      char inputs[6] = "00000";
+
+      while (!isDone) {
+        // to prevent risk of broken data, only read if there are at least 7 characters
+        if (Serial.available() >= 5) {
+          int steps;
+          int dir;
+          int index;
+          for (int i = 0; i < 5; i++) {
+            inputs[i] = Serial.read();
+          }
+
+          // discard anything after the first 5 characters just in case
+          while (Serial.available()) {
+            Serial.read();
+          }
+
+          // TODO: Check this with new input format, don't understand
+          if (inputs[0] == '+' || inputs[0] == '-') {
+            steps = (inputs[1] - '0') * 1000 + (inputs[2] - '0') * 100 + (inputs[3] - '0') * 10 + (inputs[4] - '0');
+            dir = !(inputs[0] == '+');  // CW (1) if +, CCW (2) if -
+            // not needed anymore? index = inputs[6] - '0';
+
+            Serial.print("Set steps ");
+            Serial.print(steps);
+            Serial.print(" to index ");
+            Serial.println(index);
+
+            moveNSteps(steps, dir, 255);
+          }
+          // quickly checking if inputs is alldone by just comparing the first letter
+          if (inputs[0] == 'a')
+            isDone = true;
         }
-
-        // discard anything after the first 5 characters just in case
-        while (Serial.available()) {
-          Serial.read();
-        }
-
-        // TODO: Check this with new input format, don't understand
-        if (inputs[0] == '+' || inputs[0] == '-') {
-          steps = inputs.substring(1, 5).toInt();
-          dir = 2 - (inputs[0] == '+');  // CW (1) if +, CCW (2) if -
-          // not needed anymore? index = inputs[6] - '0';
-
-          Serial.print("Set steps ");
-          Serial.print(steps);
-          Serial.print(" to index ");
-          Serial.println(index);
-
-          moveNSteps(steps, dir, 20);
-        }
-        // quickly checking if inputs is alldone by just comparing the first letter
-        if (inputs[0] == 'a')
-          isDone = true;
       }
     }
-  }
 };
 
 class dc : public motor {
-public:
-  dc(int powerPin1, int powerPin2, int dirPin, int enc1Pin, int enc2Pin, int calibAngle)
-    : powerPin1(powerPin1), powerPin2(powerPin2), dirPin(dirPin), enc(enc1Pin, enc2Pin), calibAngle(calibAngle) {
-  }
-
-  // Moves motor by nSteps encoder steps into direction dir (CW or CCW) at speed 'speed'.
-  void moveNSteps(int nSteps, int dir, int speed) override {
-    // start with motor off
-    analogWrite(powerPin1, 0);
-    analogWrite(powerPin2, 0);
-
-    int lastSignal = enc.read();
-    int currentSignal;
-    // steps run during the current function call, direction not considered
-    int stepsRun = 0;
-    int initPosition = position;
-    int targetPosition;
-
-    // calculate target position
-    if (dir == CW) {
-      targetPosition = initPosition + nSteps;
-    } else {
-      targetPosition = initPosition - nSteps;
+  public:
+    dc(int powerPin1, int powerPin2, int enc1Pin, int enc2Pin, float calibAngle)
+      : powerPin1(powerPin1), powerPin2(powerPin2), enc(enc1Pin, enc2Pin), calibAngle(calibAngle) {
     }
 
-    // start motor
-    // speed requires: between 0 and 255
-    if (dir == CW) {
-      analogWrite(powerPin1, speed);
-    } else {
-      analogWrite(powerPin2, speed);
-    }
+    // Moves motor by nSteps encoder steps into direction dir (CW or CCW) at speed 'speed'.
+    void moveNSteps(int nSteps, int dir, int speed) override {
+      // start with motor off
+      analogWrite(powerPin1, 0);
+      analogWrite(powerPin2, 0);
 
-    // check whether the number of encoder steps passed 'stepsRun' has reached the desired number of steps 'nSteps' continuously
-    while (stepsRun < nSteps) {
-      currentSignal = enc.read();
-      if (currentSignal != lastSignal) {
-        stepsRun++;
-        lastSignal = currentSignal;
+      int lastSignal = enc.read();
+      int currentSignal;
+      // steps run during the current function call, direction not considered
+      int stepsRun = 0;
+      int initPosition = position;
+      int targetPosition;
+
+      // calculate target position
+      if (dir == CW) {
+        targetPosition = initPosition + nSteps;
+      } else {
+        targetPosition = initPosition - nSteps;
+      }
+
+      // start motor
+      // speed requires: between 0 and 255
+      if (dir == CW) {
+        analogWrite(powerPin1, speed);
+      } else {
+        analogWrite(powerPin2, speed);
+      }
+
+      // check whether the number of encoder steps passed 'stepsRun' has reached the desired number of steps 'nSteps' continuously
+      while (stepsRun < nSteps) {
+        currentSignal = enc.read();
+        if (currentSignal != lastSignal) {
+          stepsRun++;
+          lastSignal = currentSignal;
+        }
+      }
+
+      analogWrite(powerPin1, 0);
+      analogWrite(powerPin2, 0);
+      enc.write(0);
+      Serial.println("Motor stopped");
+
+      if (dir == CW) {
+        position += stepsRun;
+      } else {
+        position -= stepsRun;
+      }
+
+      if (SERIAL_PRINT) {
+        Serial.print("Initial position: ");
+        Serial.println(initPosition);
+        Serial.print("Target Position: ");
+        Serial.println(targetPosition);
+        Serial.print("Actual position: ");
+        Serial.println(position);
       }
     }
 
-    analogWrite(powerPin1, 0);
-    analogWrite(powerPin2, 0);
-    enc.write(0);
-    Serial.println("Motor stopped");
-
-    if (dir == CW) {
-      position += stepsRun;
-    } else {
-      position -= stepsRun;
+    void zero() {
+      manualMov();
+      enc.write(0);
+      position = 0;
+      Serial.println("This arm successfully zero'd!");
     }
 
-    if (SERIAL_PRINT) {
-      Serial.println("Initial position: " + initPosition);
-      Serial.println("Target Position: " + targetPosition);
-      Serial.println("Actual position: " + position);
+    void calibrateDC() {
+      manualMov();
+      stepsPerDeg = abs(position / calibAngle);
+      enc.write(0);
     }
-  }
 
-  void zero() {
-    manualMov();
-    enc.write(0);
-    position = 0;
-    Serial.println("This arm successfully zero'd!");
-  }
-
-  void calibrateDC() {
-    manualMov();
-    stepsPerDeg = abs(enc.read()) / calibAngle;
-    enc.write(0);
-  }
-
-  int powerPin1;
-  int powerPin2;
-  int dirPin;
-  int calibAngle;
-  Encoder enc;
+    int powerPin1;
+    int powerPin2;
+    float calibAngle;
+    Encoder enc;
 };
 
 // A stepper object is defined by its dirPin which sets the pin that controls the direction of rotation (HIGH/LOW) and a stepPin.
 // Setting the stepPin HIGH and then LOW defines one step movement.
 class stepper : motor {
-public:
-  stepper(int dirPin, int stepPin)
-    : dirPin(dirPin), stepPin(stepPin) {
-    pinMode(stepPin, OUTPUT);
-    pinMode(dirPin, OUTPUT);
-  }
+  public:
+    stepper(int dirPin, int stepPin)
+      : dirPin(dirPin), stepPin(stepPin) {
+      pinMode(stepPin, OUTPUT);
+      pinMode(dirPin, OUTPUT);
+    }
 
-  int dirPin;
-  int stepPin;
+    int dirPin;
+    int stepPin;
 };
 
 // Describes a position with coordinates x and y in [cm] with (0, 0) at TBD
@@ -247,15 +249,15 @@ int moveToXY(motor m1, motor m2, float xTarget, float yTarget) {
   float theta1Target = asin((pow(L1, 2) + pow(D, 2) - pow(L2, 2)) / (2 * L1 * D)) - gamma;
   float theta2Target = asin((pow(D, 2) - pow(L1, 2) - pow(L2, 2)) / (2 * L1 * L2)) - theta1Target;
 
-  m1.setAngle(theta1Target, 20);
-  m2.setAngle(theta2Target, 20);
+  m1.setAngle(theta1Target*180/PI, 255);
+  m2.setAngle(theta2Target*180/PI, 255);
 }
 
 void setup() {
 
   // create dc motors specifying power pin, direction pin, encoder pin 1 and encoder pin 2.
-  dc motor1(1, 2, 3, 4, 5, 30);
-  dc motor2(5, 6, 7, 8, 9, 30);
+  dc motor1(9, 6, 3, 5, 22.5);
+  dc motor2(11, 10, 2, 4, 22.5);
 
   Serial.begin(9600);
   Serial.println("Please position the robot arm so that its lower arm is vertical and its upper arm is horizontal.");
