@@ -25,7 +25,6 @@ class motor {
     }
 
     // returns the angle of the robot arm in degrees [see drawing]
-    // TODO: currently doing integer division for the DC case, should be precise enough?
     float getAngle() {
       return (float) position / stepsPerDeg;
     }
@@ -50,6 +49,8 @@ class motor {
     float angle;
     int powerPort;
     float stepsPerDeg;
+    float calibAngle;
+    int defaultSpeed;
 
   protected:
     // Helper function, contains all the zero'ing code compatible with both motor types
@@ -90,7 +91,7 @@ class motor {
             Serial.print(" to index ");
             Serial.println(index);
 
-            moveNSteps(steps, dir, 255);
+            moveNSteps(steps, dir, defaultSpeed);
           }
           // quickly checking if inputs is alldone by just comparing the first letter
           if (inputs[0] == 'a')
@@ -105,7 +106,9 @@ class motor {
 class dc : public motor {
   public:
     dc(int powerPin1, int powerPin2, int enc1Pin, int enc2Pin, float calibAngle)
-      : powerPin1(powerPin1), powerPin2(powerPin2), enc(enc1Pin, enc2Pin), calibAngle(calibAngle) {
+      : powerPin1(powerPin1), powerPin2(powerPin2), enc(enc1Pin, enc2Pin) {
+        defaultSpeed = 255;
+        calibAngle = calibAngle;
     }
 
     // Moves motor by nSteps encoder steps into direction dir (CW or CCW) at speed 'speed'.
@@ -173,7 +176,7 @@ class dc : public motor {
       Serial.println("This arm successfully zero'd!");
     }
 
-    void calibrateDC() {
+    void calibrate() {
       manualMov();
       stepsPerDeg = abs(position / calibAngle);
       enc.write(0);
@@ -181,7 +184,6 @@ class dc : public motor {
 
     int powerPin1;
     int powerPin2;
-    float calibAngle;
     Encoder enc;
 };
 
@@ -189,58 +191,60 @@ class dc : public motor {
 // Setting the stepPin HIGH and then LOW defines one step movement.
 class stepper : motor {
   public:
-    stepper(int dirPin, int stepPin)
-      : dirPin(dirPin), stepPin(stepPin) {
-      pinMode(stepPin, OUTPUT);
+    stepper(int dirPin, int enablePin, int pulsePin, float calibAngle)
+      : dirPin(dirPin), enablePin(enablePin), pulsePin(pulsePin) {
       pinMode(dirPin, OUTPUT);
+      pinMode(enablePin, OUTPUT);
+      pinMode(pulsePin, OUTPUT);
+      defaultSpeed = 10;
+      calibAngle = calibAngle;
+    }
+
+    void moveNSteps(int nSteps, int dir, int speed) override {
+      digitalWrite(dirPin, dir);
+      digitalWrite(enablePin, HIGH);
+      
+      pulseDelay = 1/speed * 10000;
+      
+      for (int i = 0; i < nSteps; i++) {
+        digitalWrite(pulsePin, HIGH);
+        delayMicroseconds(pulseDelay);
+        digitalWrite(pulsePin, LOW);
+        delayMicroseconds(pulseDelay);
+      }
+
+      Serial.println("Motor stopped");
+
+      if (dir == CW) {
+        position += nSteps;
+      } else {
+        position -= nSteps;
+      }
+    }
+
+    void zero() {
+      manualMov();
+      position = 0;
+      Serial.println("This arm successfully zero'd!");
+    }
+    
+    void calibrate() {
+      manualMov();
+      stepsPerDeg = abs(position / calibAngle);
+      Serial.println("This arm successfully calibrated!");
     }
 
     int dirPin;
-    int stepPin;
+    int enablePin;
+    int pulsePin;
+    int pulseDelay;
 };
-
-// Describes a position with coordinates x and y in [cm] with (0, 0) at TBD
-struct xyPosition {
-  double x;
-  double y;
-};
-
-// Describes angles of the end effectors relative to TBD
-struct t1t2Angles {
-  double theta1;
-  double theta2;
-};
-
-// float rad2StepsDC(float radians) {
-//   return dcStepsPerTurn * angle / (PI * 2);
-// }
-
-// void moveNStepsStepper(stepper motor, int nSteps, int dir, int speed) {
-//   int initPosition = motor.position;
-//   // CW/CCW takes values 1/2, need to convert to values 0/1 for LOW/HIGH
-//   motor.dirPin = dir - 1;
-
-//   for (int stepsRun = 0; stepsRun < nSteps; stepsRun++) {
-//     digitalWrite(motor.stepPin, HIGH);
-//     delayMicroseconds(500);
-//     digitalWrite(motor.stepPin, LOW);
-//     delayMicroseconds(500);
-//   }
-// }
-
-// Returns current (x,y) position of the end effector
-struct xyPosition getCurrentXY() {
-}
-
-// Returns current (theta1, theta2) position of the robot arms
-struct t1t2Angles getCurrentT1T2() {
-}
 
 // Returns -1 if xTarget and/or yTarget are out of range of motion
 // Returns -2 if robot didn't manage to move to (xTarget, yTarget)
 // NOTE: IF THESE ARE DC INSTEAD OF MOTOR, IT USES THE PLACEHOLDER MOVENSTEPS CLASS
 // AND IT DOESNT DRIVE THE MOTORS!
-int moveToXY(dc m1, dc m2, float xTarget, float yTarget) {
+int moveToXY(motor m1, motor m2, float xTarget, float yTarget) {
 
   float D = sqrt(pow(xTarget, 2) + pow(yTarget, 2));
   Serial.print("here1:");
@@ -268,8 +272,8 @@ int moveToXY(dc m1, dc m2, float xTarget, float yTarget) {
   Serial.print(" ");
   Serial.print(theta2Target * 180 / PI);
 
-  m1.setAngle(theta1Target * 180 / PI, 255);
-  m2.setAngle(theta2Target * 180 / PI, 255);
+  m1.setAngle(theta1Target * 180 / PI, m1.defaultSpeed);
+  m2.setAngle(theta2Target * 180 / PI, m2.defaultSpeed);
 
   return 0;
 }
@@ -288,9 +292,9 @@ void setup() {
   motor2.zero();
   Serial.println("Now calibrate the motors by moving the arms to the marked positions.");
   Serial.println("You can now move motor 1.");
-  motor1.calibrateDC();
+  motor1.calibrate();
   Serial.println("You can now move motor 2.");
-  motor2.calibrateDC();
+  motor2.calibrate();
   Serial.println("Motor calibration done. Proceeding with IK!");
   while (true) {
     moveToXY(motor1, motor2, 12.0, 6.0);
