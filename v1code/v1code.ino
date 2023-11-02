@@ -47,7 +47,6 @@ class motor {
 
     int position = 0;
     float angle;
-    int powerPort;
     float stepsPerDeg;
     float calibAngle;
     int defaultSpeed;
@@ -189,28 +188,26 @@ class dc : public motor {
 
 // A stepper object is defined by its dirPin which sets the pin that controls the direction of rotation (HIGH/LOW) and a stepPin.
 // Setting the stepPin HIGH and then LOW defines one step movement.
-class stepper : motor {
+class stepper : public motor {
   public:
-    stepper(int dirPin, int enablePin, int pulsePin, float calibAngle)
-      : dirPin(dirPin), enablePin(enablePin), pulsePin(pulsePin) {
+    stepper(int dirPin, int stepPin, float calibAngle)
+      : dirPin(dirPin), stepPin(stepPin) {
       pinMode(dirPin, OUTPUT);
-      pinMode(enablePin, OUTPUT);
-      pinMode(pulsePin, OUTPUT);
+      pinMode(stepPin, OUTPUT);
       defaultSpeed = 10;
       calibAngle = calibAngle;
     }
 
     void moveNSteps(int nSteps, int dir, int speed) override {
       digitalWrite(dirPin, dir);
-      digitalWrite(enablePin, HIGH);
       
-      pulseDelay = 1/speed * 10000;
+      stepDelay = 1/speed * 10000;
       
       for (int i = 0; i < nSteps; i++) {
-        digitalWrite(pulsePin, HIGH);
-        delayMicroseconds(pulseDelay);
-        digitalWrite(pulsePin, LOW);
-        delayMicroseconds(pulseDelay);
+        digitalWrite(stepPin, HIGH);
+        delayMicroseconds(stepDelay);
+        digitalWrite(stepPin, LOW);
+        delayMicroseconds(stepDelay);
       }
 
       Serial.println("Motor stopped");
@@ -235,9 +232,8 @@ class stepper : motor {
     }
 
     int dirPin;
-    int enablePin;
-    int pulsePin;
-    int pulseDelay;
+    int stepPin;
+    int stepDelay;
 };
 
 // Returns -1 if xTarget and/or yTarget are out of range of motion
@@ -280,9 +276,9 @@ int moveToXY(motor m1, motor m2, float xTarget, float yTarget) {
 
 void setup() {
 
-  // create dc motors specifying power pin, direction pin, encoder pin 1 and encoder pin 2.
-  dc motor1(9, 6, 3, 5, 22.5);
-  dc motor2(11, 10, 2, 4, 22.5);
+  // create stepper motors specifying direction pin, step pin and calibration reference angle.
+  stepper motor1(9, 6, 22.5);
+  stepper motor2(11, 10, 22.5);
 
   Serial.begin(9600);
   Serial.println("Please position the robot arm so that its lower arm is vertical and its upper arm is horizontal.");
@@ -302,7 +298,6 @@ void setup() {
     moveToXY(motor1, motor2, 12.0, 11.0);
     delay(1000);
   }
-
   // (12, 6) (12, 2)
 }
 
