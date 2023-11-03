@@ -277,27 +277,31 @@ int moveToXY(motor m1, motor m2, float xTarget, float yTarget) {
 void setup() {
 
   // create stepper motors specifying direction pin, step pin and calibration reference angle.
-  stepper motor1(9, 6, 22.5);
-  stepper motor2(11, 10, 22.5);
+  stepper motor1(5, 6, 22.5);
+  //stepper motor2(11, 10, 22.5);
 
-  Serial.begin(9600);
-  Serial.println("Please position the robot arm so that its lower arm is vertical and its upper arm is horizontal.");
-  Serial.println("Start with the lower arm by moving it to the vertical position.");
-  motor1.zero();
-  Serial.println("Now move the upper arm into the horizontal position.");
-  motor2.zero();
-  Serial.println("Now calibrate the motors by moving the arms to the marked positions.");
-  Serial.println("You can now move motor 1.");
-  motor1.calibrate();
-  Serial.println("You can now move motor 2.");
-  motor2.calibrate();
+  // Serial.begin(9600);
+  // Serial.println("Please position the robot arm so that its lower arm is vertical and its upper arm is horizontal.");
+  // Serial.println("Start with the lower arm by moving it to the vertical position.");
+  // motor1.zero();
+  // Serial.println("Now move the upper arm into the horizontal position.");
+  // //motor2.zero();
+  // Serial.println("Now calibrate the motors by moving the arms to the marked positions.");
+  // Serial.println("You can now move motor 1.");
+  // motor1.calibrate();
+  //Serial.println("You can now move motor 2.");
+  //motor2.calibrate();
   Serial.println("Motor calibration done. Proceeding with IK!");
-  while (true) {
-    moveToXY(motor1, motor2, 12.0, 6.0);
-    delay(1000);
-    moveToXY(motor1, motor2, 12.0, 11.0);
-    delay(1000);
+  while (1) {
+    motor1.moveNSteps(5, CW, 3);
+    break;
   }
+  // while (true) {
+  //   moveToXY(motor1, motor2, 12.0, 6.0);
+  //   delay(1000);
+  //   moveToXY(motor1, motor2, 12.0, 11.0);
+  //   delay(1000);
+  // }
   // (12, 6) (12, 2)
 }
 
