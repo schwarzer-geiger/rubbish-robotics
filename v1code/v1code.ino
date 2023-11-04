@@ -296,8 +296,8 @@ void setup() {
   //motor2.calibrate();
   Serial.println("Motor calibration done. Proceeding with IK!");
   while (1) {
-    motor1.moveNSteps(5, CW, 3);
-    motor1.moveNSteps(5, CCW, 3);
+    motor1.moveNSteps(100, CW, 100);
+    motor1.moveNSteps(100, CCW, 100);
   }
   // while (true) {
   //   moveToXY(motor1, motor2, 12.0, 6.0);
