@@ -92,7 +92,7 @@ class dc : public motor {
     dc(int powerPin1, int powerPin2, int enc1Pin, int enc2Pin)
       : powerPin1(powerPin1), powerPin2(powerPin2), enc(enc1Pin, enc2Pin) {
     }
-    
+
     void callNSteps(int steps, int dir) {
       moveNSteps(steps, dir, DEFAULT_SPEED_DC);
     }
@@ -297,7 +297,7 @@ void setup() {
   Serial.println("Motor calibration done. Proceeding with IK!");
   while (1) {
     motor1.moveNSteps(5, CW, 3);
-    break;
+    motor1.moveNSteps(5, CCW, 3);
   }
   // while (true) {
   //   moveToXY(motor1, motor2, 12.0, 6.0);
