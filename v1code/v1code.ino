@@ -4,6 +4,9 @@
 // Macros
 #define CW 0
 #define CCW 1
+#define CALIB_ANGLE 22.5
+#define DEFAULT_SPEED_DC 255
+#define DEFAULT_ACCEL_STEPPER 1
 
 // Debugging: 0 - off, 1 - on
 #define SERIAL_PRINT 1
@@ -17,9 +20,7 @@ float L2 = 10;
 
 // #----------USER PARAMETERS END----------#
 
-// A dc object consists of a motor and an encoder object, and a position variable to track the motor position
-// Clockwise (CW) rotation increases the position value.
-
+// The motor class acts as an interface implemented by dc and stepper.
 class motor {
   public:
     virtual void callNSteps(int, int) {
@@ -28,12 +29,10 @@ class motor {
     virtual void getAngle(int, int) {
     }
 
-    virtual void setAngle(int, int) {
+    virtual void moveToAngle(int, int) {
     }
 
-    float angle;
     float stepsPerDeg;
-    float calibAngle;
 
   protected:
     // Helper function, contains all the zero'ing code compatible with both motor types
@@ -84,17 +83,18 @@ class motor {
     }
 };
 
-
+// A dc object consists of a motor and an encoder object, and a position variable to track the motor position
+// Clockwise (CW) rotation increases the position value.
 
 class dc : public motor {
   public:
-    dc(int powerPin1, int powerPin2, int enc1Pin, int enc2Pin, float calibAngle)
+    // constructor
+    dc(int powerPin1, int powerPin2, int enc1Pin, int enc2Pin)
       : powerPin1(powerPin1), powerPin2(powerPin2), enc(enc1Pin, enc2Pin) {
-        calibAngle = calibAngle;
     }
-
+    
     void callNSteps(int steps, int dir) {
-      moveNSteps(steps, dir, 255);
+      moveNSteps(steps, dir, DEFAULT_SPEED_DC);
     }
 
     // returns the angle of the robot arm in degrees [see drawing]
@@ -103,7 +103,7 @@ class dc : public motor {
     }
 
     // moves motor/arm to desired angle at desired speed
-    void setAngle(float targetAngle, int speed) {
+    void moveToAngle(float targetAngle, int speed) {
       float currentAngle = getAngle();
       float difference = targetAngle - currentAngle;
       int stepsToTurn = (int) abs(difference * stepsPerDeg);
@@ -185,7 +185,7 @@ class dc : public motor {
 
     void calibrate() {
       manualMov();
-      stepsPerDeg = abs(position / calibAngle);
+      stepsPerDeg = abs(position / CALIB_ANGLE);
       enc.write(0);
     }
 
@@ -199,23 +199,22 @@ class dc : public motor {
 // Setting the stepPin HIGH and then LOW defines one step movement.
 class stepper : public motor {
   public:
-    stepper(int stepPin, int dirPin, float calibAngle)
+    stepper(int stepPin, int dirPin)
       : driver(1, stepPin, dirPin) {
-      calibAngle = calibAngle;
     }
 
     void callNSteps(int steps, int dir) {
-      moveNSteps(steps, dir, 1);
+      moveNSteps(steps, dir, DEFAULT_ACCEL_STEPPER);
     }
 
     void moveNSteps(int nSteps, int dir, int accel) {
-      driver.setAcceleration(accel);
       if (dir == CW) {
         driver.move(nSteps);
       } else {
         driver.move(-nSteps);
       }
-      driver.runToPosition();
+      driver.setAcceleration(accel);
+      driver.run();
     }
 
     // returns the angle of the robot arm in degrees [see drawing]
@@ -223,22 +222,20 @@ class stepper : public motor {
       return (float) driver.currentPosition() / stepsPerDeg;
     }
 
-    // moves motor/arm to desired angle at desired speed
-    void setAngle(float targetAngle, int accel) {
+    // moves motor/arm to desired angle at desired acceleration
+    void moveToAngle(float targetAngle, int accel) {
       int targetPosition = (int) targetAngle * stepsPerDeg;
       driver.setAcceleration(accel);
       driver.moveTo(targetPosition);
-      driver.runToPosition();
+      driver.run();
     }
     
     void calibrate() {
       manualMov();
-      stepsPerDeg = abs(driver.currentPosition() / calibAngle);
+      stepsPerDeg = abs(driver.currentPosition() / CALIB_ANGLE);
       Serial.println("This arm successfully calibrated!");
     }
 
-    int dirPin;
-    int stepPin;
     AccelStepper driver;
 };
 
@@ -274,8 +271,8 @@ int moveToXY(motor m1, motor m2, float xTarget, float yTarget) {
   Serial.print(" ");
   Serial.print(theta2Target * 180 / PI);
 
-  m1.setAngle(theta1Target * 180 / PI, 1);
-  m2.setAngle(theta2Target * 180 / PI, 1);
+  m1.moveToAngle(theta1Target * 180 / PI, 1);
+  m2.moveToAngle(theta2Target * 180 / PI, 1);
 
   return 0;
 }
@@ -283,7 +280,7 @@ int moveToXY(motor m1, motor m2, float xTarget, float yTarget) {
 void setup() {
 
   // create stepper motors specifying direction pin, step pin and calibration reference angle.
-  stepper motor1(6, 5, 22.5);
+  stepper motor1(6, 5);
   //stepper motor2(11, 10, 22.5);
 
   // Serial.begin(9600);
