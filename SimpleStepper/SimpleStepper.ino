@@ -4,6 +4,7 @@
 
 // Include the AccelStepper library:
 #include "AccelStepper.h"
+#include <MultiStepper.h>
 
 // Define stepper motor connections and motor interface type.
 // Motor interface type must be set to 1 when using a driver
@@ -12,22 +13,42 @@
 #define motorInterfaceType 1
 
 // Create a new instance of the AccelStepper class:
-AccelStepper stepper = AccelStepper(motorInterfaceType, stepPin, dirPin);
+AccelStepper stepper1 = AccelStepper(motorInterfaceType, stepPin, dirPin);
+AccelStepper stepper2 = AccelStepper(1, 9, 8);
+MultiStepper steppers;
 
 void setup() {
+  Serial.begin(9600);
   // Set the maximum speed in steps per second:
-  stepper.setMaxSpeed(50);
-  stepper.setAcceleration(5);
+  int SPEED = 80;
+  stepper1.setMaxSpeed(SPEED);
+  stepper1.setAcceleration(20);
+  stepper2.setMaxSpeed(SPEED);
+  stepper2.setAcceleration(20);
+  steppers.addStepper(stepper1);
+  steppers.addStepper(stepper2);
 }
 
 void loop() {
-  stepper.setCurrentPosition(0);
-  delay(1000);
-  stepper.setCurrentPosition(0);
-  stepper.runToNewPosition(15);
-  delay(1000);
-  stepper.runToNewPosition(0);
-  stepper.setCurrentPosition(0);
 
-  delay(3000);
+  int range1 = 40;
+  int range2 = 40;
+
+  long positions[2]; // Array of desired stepper positions
+
+  positions[0] = range1;
+  positions[1] = range2;
+
+  steppers.moveTo(positions);
+  steppers.runSpeedToPosition(); // Blocks until all are in position
+  Serial.println("Moved positive");
+  delay(1000);
+
+  // Move to a different coordinate
+  positions[0] = -range1;
+  positions[1] = -range2;
+  steppers.moveTo(positions);
+  steppers.runSpeedToPosition(); // Blocks until all are in position
+  Serial.println("Moved negative");
+  delay(1000);
 }
