@@ -1,5 +1,6 @@
 #include <Encoder.h>
 #include "AccelStepper.h"
+#include <MultiStepper.h>
 
 // Macros
 #define CW 0
@@ -29,7 +30,7 @@ class motor {
     virtual void getAngle(int, int) {
     }
 
-    virtual void moveToAngle(int, int) {
+    virtual void moveToAngle(int) {
     }
 
     float stepsPerDeg;
@@ -223,11 +224,9 @@ class stepper : public motor {
     }
 
     // moves motor/arm to desired angle at desired acceleration
-    void moveToAngle(float targetAngle, int accel) {
+    void moveToAngle(float targetAngle) {
       int targetPosition = (int) targetAngle * stepsPerDeg;
-      driver.setAcceleration(accel);
       driver.moveTo(targetPosition);
-      driver.run();
     }
     
     void calibrate() {
@@ -271,8 +270,8 @@ int moveToXY(motor m1, motor m2, float xTarget, float yTarget) {
   Serial.print(" ");
   Serial.print(theta2Target * 180 / PI);
 
-  m1.moveToAngle(theta1Target * 180 / PI, 1);
-  m2.moveToAngle(theta2Target * 180 / PI, 1);
+  m1.moveToAngle(theta1Target * 180 / PI);
+  m2.moveToAngle(theta2Target * 180 / PI);
 
   return 0;
 }
@@ -281,7 +280,17 @@ void setup() {
 
   // create stepper motors specifying direction pin, step pin and calibration reference angle.
   stepper motor1(6, 5);
-  //stepper motor2(11, 10, 22.5);
+  stepper motor2(9, 8);
+
+  MultiStepper steppers;
+
+  int SPEED = 80;
+  motor1.driver.setMaxSpeed(SPEED);
+  motor1.driver.setAcceleration(20);
+  motor2.driver.setMaxSpeed(SPEED);
+  motor2.driver.setAcceleration(20);
+  steppers.addStepper(motor1.driver);
+  steppers.addStepper(motor2.driver);
 
   // Serial.begin(9600);
   // Serial.println("Please position the robot arm so that its lower arm is vertical and its upper arm is horizontal.");
@@ -292,13 +301,13 @@ void setup() {
   // Serial.println("Now calibrate the motors by moving the arms to the marked positions.");
   // Serial.println("You can now move motor 1.");
   // motor1.calibrate();
-  //Serial.println("You can now move motor 2.");
-  //motor2.calibrate();
+  // Serial.println("You can now move motor 2.");
+  // motor2.calibrate();
   Serial.println("Motor calibration done. Proceeding with IK!");
-  while (1) {
-    motor1.moveNSteps(100, CW, 100);
-    motor1.moveNSteps(100, CCW, 100);
-  }
+  
+  moveToXY(motor1, motor2, 12, 6);
+  steppers.runSpeedToPosition();
+
   // while (true) {
   //   moveToXY(motor1, motor2, 12.0, 6.0);
   //   delay(1000);
