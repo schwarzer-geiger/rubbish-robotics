@@ -5,8 +5,11 @@
 // Macros
 #define CW 0
 #define CCW 1
+// Set the calibration angle in degrees used to determine how many steps the a motor runs to turn 1 degree.
 #define CALIB_ANGLE 22.5
+// Between 1 (slow) and 255 (fast)
 #define DEFAULT_SPEED_DC 255
+// in steps/s^2
 #define DEFAULT_ACCEL_STEPPER 1
 
 // Debugging: 0 - off, 1 - on
@@ -58,12 +61,11 @@ protected:
           inputs[i] = Serial.read();
         }
 
-        // discard anything after the first 5 characters just in case
+        // discard anything after the first 5 characters
         while (Serial.available()) {
           Serial.read();
         }
 
-        // TODO: Check this with new input format, don't understand
         if (inputs[0] == '+' || inputs[0] == '-') {
           steps = (inputs[1] - '0') * 1000 + (inputs[2] - '0') * 100 + (inputs[3] - '0') * 10 + (inputs[4] - '0');
           dir = !(inputs[0] == '+');  // CW (1) if +, CCW (2) if -
@@ -94,6 +96,7 @@ public:
     : powerPin1(powerPin1), powerPin2(powerPin2), enc(enc1Pin, enc2Pin) {
   }
 
+  // calls the moveNSteps() function of the respective motor type
   void callNSteps(int steps, int dir) {
     moveNSteps(steps, dir, DEFAULT_SPEED_DC);
   }
@@ -249,18 +252,14 @@ int moveToXY(MultiStepper steppers, motor m1, motor m2, float xTarget, float yTa
   Serial.println(D);
 
   if (D > (L1 + L2)) {
-    Serial.println("oops");
+    Serial.println("Position out of range!");
     return -1;
   }
 
-  Serial.println("here3");
   float gamma = atan2(yTarget, xTarget);
   // assuming theta 1 controls the lower arm and theta 2 is for the upper arm,
   // assuming robot has been zeroed in a vertical upper arm, horisontal lower arm position
   // assuming when looking at the robot from its right side,  theta 1 is positive in CW and theta 2 is positive in CCW
-
-  Serial.print("here4: ");
-  Serial.println(gamma);
 
   float theta1Target = asin((pow(L1, 2) + pow(D, 2) - pow(L2, 2)) / (2 * L1 * D)) - gamma;
   float theta2Target = asin((pow(D, 2) - pow(L1, 2) - pow(L2, 2)) / (2 * L1 * L2)) - theta1Target;
@@ -283,6 +282,11 @@ int moveToXY(MultiStepper steppers, motor m1, motor m2, float xTarget, float yTa
   return 0;
 }
 
+void drawCircle(float radius, centerX, centerY) {
+  \\ hint1: Use a loop of moveToXY() commands
+  \\ hint2: moveToXY() will check whether your circle goes out of range.
+}
+
 void setup() {
 
   // create stepper motors specifying direction pin, step pin and calibration reference angle.
@@ -299,31 +303,22 @@ motor2.driver.setAcceleration(20);
 steppers.addStepper(motor1.driver);
 steppers.addStepper(motor2.driver);
 
-  // Serial.begin(9600);
-  // Serial.println("Please position the robot arm so that its lower arm is vertical and its upper arm is horizontal.");
-  // Serial.println("Start with the lower arm by moving it to the vertical position.");
-  // motor1.zero();
-  // Serial.println("Now move the upper arm into the horizontal position.");
-  // //motor2.zero();
-  // Serial.println("Now calibrate the motors by moving the arms to the marked positions.");
-  // Serial.println("You can now move motor 1.");
-  // motor1.calibrate();
-  // Serial.println("You can now move motor 2.");
-  // motor2.calibrate();
-  Serial.println("Motor calibration done. Proceeding with IK!");
+Serial.begin(9600);
+Serial.println("Please position the robot arm so that its lower arm is vertical and its upper arm is horizontal.");
+Serial.println("Start with the lower arm by moving it to the vertical position.");
+motor1.zero();
+Serial.println("Now move the upper arm into the horizontal position.");
+//motor2.zero();
+Serial.println("Now calibrate the motors by moving the arms to the marked positions.");
+Serial.println("You can now move motor 1.");
+motor1.calibrate();
+Serial.println("You can now move motor 2.");
+motor2.calibrate();
+Serial.println("Motor calibration done. Proceeding with user code!");
 
-  moveToXY(steppers, motor1, motor2, 12, 6);
-  steppers.runSpeedToPosition();
-
-  // while (true) {
-  //   moveToXY(motor1, motor2, 12.0, 6.0);
-  //   delay(1000);
-  //   moveToXY(motor1, motor2, 12.0, 11.0);
-  //   delay(1000);
-  // }
-  // (12, 6) (12, 2)
+moveToXY(steppers, motor1, motor2, 12, 6);
+steppers.runSpeedToPosition();
 }
 
 void loop() {
-  // moveNStepsDC(motor1, 2000, CW, 200);
 }
