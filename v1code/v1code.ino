@@ -285,6 +285,12 @@ int moveToXY(MultiStepper steppers, motor m1, motor m2, float xTarget, float yTa
 void drawCircle(float radius, centerX, centerY) {
   \\ hint1: Use a loop of moveToXY() commands
   \\ hint2: moveToXY() will check whether your circle goes out of range.
+
+  for (int i = 0; i < 360; i++) {
+    float nextPosX = radius * cos(i * PI/180);
+    float nextPosY = radius * sin(i * PI/180);
+    moveToXY(steppers, motor1, motor2, nextPosX, nextPosY);
+  }
 }
 
 void setup() {
